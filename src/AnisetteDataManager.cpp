@@ -7,6 +7,8 @@
 #include <set>
 #include <ctime>
 #include <cstdlib>
+#include <algorithm>
+#include <stdexcept>
 
 #include "AnisetteData.h"
 #include "AltServerApp.h"
@@ -57,6 +59,19 @@ std::string GetAnisetteURL() {
 	return U("https://armconverter.com/anisette/irGb3Quww8zrhgqnzmrx");
 }
 
+static std::string CompactHttpBody(std::string body, size_t maxLen = 240)
+{
+	std::replace(body.begin(), body.end(), '\r', ' ');
+	std::replace(body.begin(), body.end(), '\n', ' ');
+	std::replace(body.begin(), body.end(), '\t', ' ');
+	if (body.size() > maxLen)
+	{
+		body.resize(maxLen);
+		body += "...";
+	}
+	return body;
+}
+
 std::shared_ptr<AnisetteData> AnisetteDataManager::FetchAnisetteData()
 {
 	// auto client = web::http::client::http_client(U("https://armconverter.com"));
@@ -72,7 +87,8 @@ std::shared_ptr<AnisetteData> AnisetteDataManager::FetchAnisetteData()
 	http_request request(methods::GET);
 	
 	std::map<utility::string_t, utility::string_t> headers = {
-		{"User-Agent", "Xcode"},
+		{U("User-Agent"), U("Xcode")},
+		{U("Accept"), U("application/json")},
 	};
 
 	for (auto& pair : headers)
@@ -95,7 +111,52 @@ std::shared_ptr<AnisetteData> AnisetteDataManager::FetchAnisetteData()
 		.then([=](http_response response)
 			{
 				odslog("Received response status code: " << response.status_code());
-				return response.extract_json();
+				auto statusCode = response.status_code();
+				auto contentType = response.headers().content_type();
+				return response.extract_vector()
+					.then([statusCode, contentType](std::vector<unsigned char> body)
+						{
+							if (statusCode < status_codes::OK || statusCode >= status_codes::MultipleChoices)
+							{
+								std::string bodyText(body.begin(), body.end());
+								std::string snippet = CompactHttpBody(bodyText);
+								std::stringstream ss;
+								ss << "Anisette server HTTP " << statusCode;
+								if (!contentType.empty())
+								{
+									ss << " (" << contentType << ")";
+								}
+								if (!snippet.empty())
+								{
+									ss << ": " << snippet;
+								}
+								throw std::runtime_error(ss.str());
+							}
+
+							utility::stringstream_t stream;
+							std::string bodyText(body.begin(), body.end());
+							stream << bodyText;
+							try
+							{
+								return json::value::parse(stream);
+							}
+							catch (const std::exception& exception)
+							{
+								std::stringstream ss;
+								ss << "Failed to parse anisette response as JSON";
+								if (!contentType.empty())
+								{
+									ss << " (" << contentType << ")";
+								}
+								auto snippet = CompactHttpBody(bodyText);
+								if (!snippet.empty())
+								{
+									ss << ": " << snippet;
+								}
+								ss << " [" << exception.what() << "]";
+								throw std::runtime_error(ss.str());
+							}
+						});
 			})
 		.then([&anisetteData](pplx::task<json::value> previousTask)
 			{
