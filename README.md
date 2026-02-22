@@ -58,6 +58,9 @@ docker run --rm -v ${PWD}:/workdir -w /workdir ghcr.io/nyamisty/altserver_builde
 # USB AFC throughput benchmark (MB/s)
 scripts/device-bench.sh afc --runs 3 --size-mb 130
 
+# Wi-Fi/netmuxd AFC throughput benchmark (network path)
+scripts/device-bench.sh afc --network --mux-socket 127.0.0.1:27015 --udid <UDID> --runs 3 --size-mb 130
+
 # Daemon smoke run with log extraction
 scripts/device-bench.sh daemon --altserver ./build/AltServer-x86_64 --seconds 10 --debug-level 1
 
@@ -82,9 +85,10 @@ scripts/device-bench.sh install-altstore \
 ## Current validation snapshot
 
 - Docker build (`amd64`): pass.
-- Daemon smoke with USB-connected iPhone: pass (device detected, notification connection starts).
-- USB AFC benchmark (`130 MB`, 3 runs): median `36.158 MB/s`, p95 `36.351 MB/s`.
-- Wi-Fi/netmuxd benchmark: requires a network-visible device on netmuxd socket.
+- Local non-Docker build in this environment: missing `cpprestsdk` headers (`cpprest/http_client.h`).
+- Daemon smoke with USB-connected iPhone: pass (device detected).
+- USB AFC benchmark (`130 MB`, 3 runs): median `35.406 MB/s`, p95 `35.406 MB/s`.
+- Wi-Fi/netmuxd AFC benchmark in this session: timed out on `afcclient -n` (`--mux-socket 127.0.0.1:27015`), needs manual network-path verification.
 
 ## Known limitations
 

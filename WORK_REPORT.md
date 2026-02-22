@@ -16,6 +16,7 @@ Date: 2026-02-22
 6. Ported required runtime/perf fixes from `working-26.3`.
 7. Added benchmark automation helper: `scripts/device-bench.sh`.
 8. Updated `README.md` with deltas, versions, and validation status.
+9. Extended bench helper with explicit network mode and per-run timeout guards.
 
 ## Fork/repo state
 
@@ -76,16 +77,19 @@ Date: 2026-02-22
 ### Throughput
 
 - USB AFC benchmark (`scripts/device-bench.sh afc --runs 3 --size-mb 130`):
-  - runs: `35.778`, `35.499`, `36.062` MB/s
-  - median: `35.778 MB/s`
-  - p95: `36.062 MB/s`
+  - runs: `35.406`, `35.397`, `35.406` MB/s
+  - median: `35.406 MB/s`
+  - p95: `35.406 MB/s`
   - gate `>=20 MB/s`: PASS
+- Wi-Fi/netmuxd AFC benchmark attempt:
+  - command: `scripts/device-bench.sh afc --network --mux-socket 127.0.0.1:27015 --runs 1 --size-mb 130 --timeout-seconds 8`
+  - result: timed out (`rc=124`) on `afcclient -n`; network AFC path requires manual validation in target setup.
 
 ### Pending manual/human-in-loop tests
 
 - End-to-end AltStore install from this branch (requires Apple ID credentials and device trust confirmations).
 - End-to-end IPA install via AltStore over USB and Wi-Fi.
-- Wi-Fi/netmuxd speed gate (current netmuxd socket had no visible network device in this session).
+- Wi-Fi/netmuxd speed gate (netmuxd lists network UDIDs, but AFC operation times out in this environment).
 - Explicit auto-select verification during real install request path (requires active install flow).
 
 ## Fallback/fork details
