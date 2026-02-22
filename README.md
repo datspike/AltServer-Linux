@@ -76,11 +76,16 @@ scripts/device-bench.sh install-altstore \
 ## Runtime env vars
 
 - `ALTSERVER_ANISETTE_SERVER`: custom anisette endpoint.
+- `ALTSERVER_ANISETTE_SERVERS`: fallback list of anisette endpoints (`url1,url2,...`; also supports `;` and spaces).
 - `USBMUXD_SOCKET_ADDRESS`: explicit mux socket (for netmuxd extension mode, usually `127.0.0.1:27015`).
 - `ALTSERVER_NETMUXD_SOCKET_ADDRESS`: explicit auto-fallback netmuxd socket.
 - `ALTSERVER_DISABLE_AUTO_NETMUXD=1`: disable automatic usbmuxd→netmuxd fallback.
 - `ALTSERVER_USE_SYSTEM_AFCCLIENT=1`: enable fast USB upload path via system `afcclient`.
 - `ALTSERVER_AFCCLIENT_VERBOSE=1`: extra logs for `afcclient` upload path.
+
+Anisette fallback order:
+- if `ALTSERVER_ANISETTE_SERVERS` is set: try endpoints from that list in order;
+- otherwise: `ALTSERVER_ANISETTE_SERVER` (or built-in default) → `http://127.0.0.1:6969` → `http://localhost:6969`.
 
 ## Current validation snapshot
 
