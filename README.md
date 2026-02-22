@@ -23,10 +23,10 @@ Base reference: `NyaMisty/AltServer-Linux` branch `new` (`78764512`).
 
 - `libraries/libplist`: `2.7.0` (`cf5897a71ea4`)
 - `libraries/libusbmuxd`: `2.1.1` (`adf9c22b9010`)
-- `libraries/libimobiledevice`: `1.4.0` + local patch branch (`updated-libs-patches-clean`)
+- `libraries/libimobiledevice`: `1.4.0` + datspike fork `master` patches
 - `libraries/ideviceinstaller`: `1.2.0` (`1762d5f12fc5`)
 - `libraries/libimobiledevice-glue`: `1.3.2` (`aef2bf0f5bfe`)
-- `upstream_repo`: `2ef20b38db9c` + local patch branch (`updated-libs-patches-clean`)
+- `upstream_repo`: `2ef20b38db9c` + datspike fork `master` patches
 
 ## Fast start
 

@@ -1,7 +1,7 @@
 [submodule "AltServer-Windows"]
 	path = upstream_repo
 	url = https://github.com/datspike/AltServer-Windows
-	branch = develop
+	branch = master
 [submodule "libraries/libplist"]
 	path = libraries/libplist
 	url = https://github.com/libimobiledevice/libplist
@@ -12,6 +12,7 @@
 [submodule "libraries/libimobiledevice"]
 	path = libraries/libimobiledevice
 	url = https://github.com/datspike/libimobiledevice
+	branch = master
 [submodule "libraries/ideviceinstaller"]
 	path = libraries/ideviceinstaller
 	url = https://github.com/libimobiledevice/ideviceinstaller

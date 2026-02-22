@@ -33,10 +33,10 @@ Date: 2026-02-22
 
 - `libraries/libplist`: `2.7.0` (`cf5897a71ea4`)
 - `libraries/libusbmuxd`: `2.1.1` (`adf9c22b9010`)
-- `libraries/libimobiledevice`: `64a909f67185` (fork branch `updated-libs-patches`, based on `1.4.0`)
+- `libraries/libimobiledevice`: `3361f878b00d` (fork `master`, based on `1.4.0`)
 - `libraries/ideviceinstaller`: `1.2.0` (`1762d5f12fc5`)
 - `libraries/libimobiledevice-glue`: `1.3.2` (`aef2bf0f5bfe`)
-- `upstream_repo` (`AltServer-Windows`): `a2819291f52b` (fork branch `updated-libs-patches`, based on `2ef20b38db9c`)
+- `upstream_repo` (`AltServer-Windows`): `51f4783a1a15` (fork `master`, based on `2ef20b38db9c`)
 
 ## Fixes applied after baseline
 
@@ -100,15 +100,13 @@ Date: 2026-02-22
 
 Forks created for patched submodules:
 
-- `https://github.com/datspike/AltServer-Windows` (branch: `updated-libs-patches`)
-- `https://github.com/datspike/libimobiledevice` (branch: `updated-libs-patches`)
+- `https://github.com/datspike/AltServer-Windows` (branch: `master`)
+- `https://github.com/datspike/libimobiledevice` (branch: `master`)
 
 Prepared compare/PR entry points:
 
-- `https://github.com/datspike/AltServer-Windows/compare/master...updated-libs-patches`
-- `https://github.com/datspike/AltServer-Windows/pull/new/updated-libs-patches`
-- `https://github.com/datspike/libimobiledevice/compare/master...updated-libs-patches`
-- `https://github.com/datspike/libimobiledevice/pull/new/updated-libs-patches`
+- `https://github.com/rileytestut/AltServer-Windows/compare/1.7.3...datspike:AltServer-Windows:master`
+- `https://github.com/libimobiledevice/libimobiledevice/compare/master...datspike:libimobiledevice:master`
 
 `.gitmodules` updated to point these two submodules to datspike forks.
 
