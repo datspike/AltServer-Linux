@@ -6,8 +6,8 @@ Base reference: `NyaMisty/AltServer-Linux` branch `new` (`78764512`).
 
 ## What changed vs `NyaMisty/new`
 
-- Dependency refresh to current stable tags (`libplist`, `libusbmuxd`, `libimobiledevice`, `ideviceinstaller`, `libimobiledevice-glue`) and latest `upstream_repo` `develop`.
-- Additional runtime fixes ported from `working-26.3` onto latest upstream:
+- Dependency refresh to current stable tags (`libplist`, `libusbmuxd`, `libimobiledevice`, `ideviceinstaller`, `libimobiledevice-glue`) and an updated `upstream_repo` develop snapshot (`2ef20b38db9c`).
+- Additional runtime fixes applied on top of latest upstream:
   - USB-first with automatic netmuxd fallback in `DeviceManager`.
   - Single-file IPA staging for faster `Writing to device...`.
   - Optional system `afcclient` fast path for large USB payloads.
@@ -57,6 +57,11 @@ Wi-Fi install/refresh is expected when prerequisites are met:
 - iPhone and Linux host are on the same network;
 - Wi-Fi sync is enabled for the device (Finder/iTunes setting);
 - `usbmuxd`/`netmuxd` path is available (`--prefer-netmuxd` for explicit network path).
+
+## Verified devices
+
+- iPhone 17 Pro (`iOS 26.3`)
+- iPhone 13 Pro (`iOS 26.2.1`)
 
 ## Usage
 
@@ -145,17 +150,3 @@ scripts/device-bench.sh install-altstore \
 Anisette fallback order:
 - if `ALTSERVER_ANISETTE_SERVERS` is set: try endpoints from that list in order;
 - otherwise: `ALTSERVER_ANISETTE_SERVER` (or built-in default) → `http://127.0.0.1:6969` → `http://localhost:6969`.
-
-## Current validation snapshot
-
-- Docker build (`amd64`): pass.
-- Local non-Docker build in this environment: missing `cpprestsdk` headers (`cpprest/http_client.h`).
-- Daemon smoke with USB-connected iPhone: pass (device detected).
-- USB AFC benchmark (`130 MB`, 3 runs): median `35.406 MB/s`, p95 `35.406 MB/s`.
-- Wi-Fi/netmuxd AFC benchmark in this session: timed out on `afcclient -n` (`--mux-socket 127.0.0.1:27015`), needs manual network-path verification.
-
-## Known limitations
-
-- iOS trust / developer confirmation dialogs are manual (human-in-the-loop).
-- Full end-to-end AltStore install/IPA tests require Apple ID credentials and device interaction.
-- Multi-arch container pulls can be slow on first run (large builder images).
