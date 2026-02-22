@@ -7,3 +7,15 @@ BUILD_DIR := $(CURDIR)
 UPSTREAM_DIR := $(MAIN_DIR)/upstream_repo
 
 LIB_DIR := $(MAIN_DIR)/libraries
+
+DEBUG ?= 0
+
+CFLAGS ?=
+
+ifeq ($(DEBUG),1)
+CFLAGS += -O0 -g -DDEBUG
+else
+CFLAGS += -O2 -DNDEBUG
+endif
+
+CXXFLAGS ?= $(CFLAGS) -std=c++17

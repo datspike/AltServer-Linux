@@ -7,7 +7,7 @@ include $(ROOT_DIR)/../main.mak
 %.cpp.o : %.cpp
 	$(CXX) $(CXXFLAGS) $(EXTRA_FLAGS) -o $@ -c $<
 
-CFLAGS += -DHAVE_CONFIG_H -DDEBUG -O0 -g
+CFLAGS += -DHAVE_CONFIG_H
 
 
 $(BUILD_DIR)/objs/%.c.o : $(MAIN_DIR)/%.c

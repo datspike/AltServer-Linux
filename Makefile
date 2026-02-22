@@ -4,7 +4,8 @@ ARCH := $(shell gcc -dumpmachine | cut -d- -f 1)
 
 PROGRAM := $(PROGRAM)-$(ARCH)
 
-CFLAGS := -DDEBUG -O0 -g
+ROOT_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+include $(ROOT_DIR)/makefiles/main.mak
 
 ifeq ($(ARCH),i386)
 CFLAGS += -mno-default
@@ -14,12 +15,9 @@ ifeq ($(ARCH),i686)
 CFLAGS += -mno-default
 endif
 
-CXXFLAGS = $(CFLAGS) -std=c++17
-
 CFLAGS += -DNO_USBMUXD_STUB
 
-ROOT_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
-include $(ROOT_DIR)/makefiles/main.mak
+CXXFLAGS = $(CFLAGS) -std=c++17
 
 $(BUILD_DIR)/libimobiledevice.a $(BUILD_DIR)/libplist.a :
 	$(MAKE) -f $(ROOT_DIR)/makefiles/libimobiledevice-build/libimobiledevice.mak
