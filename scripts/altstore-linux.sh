@@ -10,10 +10,13 @@ DEFAULT_LOCAL_BUILDER_IMAGE="altserver-builder-local"
 DEFAULT_ANISETTE_IMAGE="dadoum/anisette-v3-server:latest"
 DEFAULT_ANISETTE_CONTAINER="altserver-anisette"
 DEFAULT_ANISETTE_PORT="6969"
+DEFAULT_ANISETTE_WAIT_SECONDS="240"
 DEFAULT_INSTALL_PATH="/usr/local/bin/AltServer"
 DEFAULT_ALTSTORE_OUTPUT="$REPO_ROOT/AltStore.ipa"
 DEFAULT_ALTSTORE_SOURCE_URL="https://cdn.altstore.io/file/altstore/apps.json"
 DEFAULT_ALTSTORE_BUNDLE_ID="com.rileytestut.AltStore"
+DEFAULT_ALTSTORE_DATA_DIR="$HOME/.altserver"
+DEFAULT_HELPER_CONFIG_NAME="helper-config.json"
 DEFAULT_NETMUXD_BIN="/usr/local/bin/netmuxd"
 DEFAULT_NETMUXD_HOST="127.0.0.1"
 DEFAULT_NETMUXD_PORT="27015"
@@ -33,6 +36,15 @@ ANIS_KEYS=(
   "X-Apple-I-TimeZone"
 )
 
+HELPER_CONFIG_LOADED="false"
+HELPER_CONFIG_DATA_DIR=""
+HELPER_CONFIG_PATH=""
+HELPER_CFG_APPLE_ID=""
+HELPER_CFG_APPLE_PASSWORD=""
+HELPER_CFG_UDID=""
+HELPER_CFG_ANISETTE_CA_BUNDLE=""
+HELPER_CFG_ANISETTE_URL=""
+
 info() {
   printf '[INFO] %s\n' "$*"
 }
@@ -44,6 +56,100 @@ warn() {
 fail() {
   printf '[ERROR] %s\n' "$*" >&2
   exit 1
+}
+
+expand_home_path() {
+  local p="$1"
+  case "$p" in
+    "~")
+      printf '%s\n' "$HOME"
+      ;;
+    "~/"*)
+      printf '%s/%s\n' "$HOME" "${p#~/}"
+      ;;
+    *)
+      printf '%s\n' "$p"
+      ;;
+  esac
+}
+
+resolve_altstore_data_dir() {
+  local data_dir="${ALTSERVER_DATA_DIR:-$DEFAULT_ALTSTORE_DATA_DIR}"
+  expand_home_path "$data_dir"
+}
+
+resolve_helper_config_path() {
+  if [[ -n "${ALTSTORE_HELPER_CONFIG_FILE:-}" ]]; then
+    expand_home_path "$ALTSTORE_HELPER_CONFIG_FILE"
+    return 0
+  fi
+
+  local data_dir
+  data_dir="$(resolve_altstore_data_dir)"
+  printf '%s/%s\n' "$data_dir" "$DEFAULT_HELPER_CONFIG_NAME"
+}
+
+load_helper_config() {
+  if [[ "$HELPER_CONFIG_LOADED" == "true" ]]; then
+    return 0
+  fi
+
+  HELPER_CONFIG_DATA_DIR="$(resolve_altstore_data_dir)"
+  HELPER_CONFIG_PATH="$(resolve_helper_config_path)"
+  HELPER_CONFIG_LOADED="true"
+
+  if [[ ! -f "$HELPER_CONFIG_PATH" ]]; then
+    return 0
+  fi
+
+  require_cmd python3
+  local values
+  if ! values="$(python3 - "$HELPER_CONFIG_PATH" <<'PY'
+import json
+import sys
+
+path = sys.argv[1]
+try:
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+except Exception as exc:
+    print(exc, file=sys.stderr)
+    sys.exit(1)
+
+if not isinstance(data, dict):
+    print("top-level JSON object expected", file=sys.stderr)
+    sys.exit(1)
+
+keys = (
+    "apple_id",
+    "apple_password",
+    "udid",
+    "anisette_ca_bundle",
+    "anisette_url",
+)
+for key in keys:
+    value = data.get(key, "")
+    if value is None:
+        value = ""
+    if not isinstance(value, str):
+        value = str(value)
+    print(value.replace("\r", "").replace("\n", " "))
+PY
+)"; then
+    fail "Failed to parse helper config: $HELPER_CONFIG_PATH"
+  fi
+
+  local cfg_lines=()
+  mapfile -t cfg_lines <<< "$values"
+  HELPER_CFG_APPLE_ID="${cfg_lines[0]:-}"
+  HELPER_CFG_APPLE_PASSWORD="${cfg_lines[1]:-}"
+  HELPER_CFG_UDID="${cfg_lines[2]:-}"
+  HELPER_CFG_ANISETTE_CA_BUNDLE="${cfg_lines[3]:-}"
+  HELPER_CFG_ANISETTE_URL="${cfg_lines[4]:-}"
+
+  if [[ -n "$HELPER_CFG_ANISETTE_CA_BUNDLE" ]]; then
+    HELPER_CFG_ANISETTE_CA_BUNDLE="$(expand_home_path "$HELPER_CFG_ANISETTE_CA_BUNDLE")"
+  fi
 }
 
 default_mux_socket() {
@@ -734,10 +840,56 @@ print("Anisette JSON looks valid")
 PY
 }
 
+run_anisette_check_cmd() {
+  local url="http://127.0.0.1:${DEFAULT_ANISETTE_PORT}"
+
+  if [[ "${1:-}" == "--url" ]]; then
+    shift
+    [[ $# -gt 0 ]] || fail "Missing value for --url"
+    url="$1"
+    shift
+  fi
+
+  [[ $# -eq 0 ]] || fail "Unknown anisette-check option: $*"
+  anisette_check "$url"
+}
+
+anisette_healthcheck_failed() {
+  local container="$1"
+  local url="$2"
+  local logs=""
+
+  if docker ps -a --format '{{.Names}}' | grep -qx "$container"; then
+    logs="$(docker logs --tail 120 "$container" 2>&1 || true)"
+  fi
+
+  if [[ -n "$logs" ]]; then
+    warn "Anisette container logs (tail):"
+    printf '%s\n' "$logs" >&2
+  else
+    warn "No container logs captured for $container"
+  fi
+
+  if grep -qi "SSL CA cert" <<<"$logs"; then
+    warn "Anisette failed TLS trust checks while downloading Apple libraries."
+    warn "Host quick check: curl -sv https://gsa.apple.com"
+    warn "If certificate validation fails, add Apple Root CA to the trust store used by Docker/container."
+  fi
+
+  if grep -qi "Downloading libraries from Apple servers" <<<"$logs" && ! grep -qi "Listening for requests" <<<"$logs"; then
+    warn "Anisette is still provisioning and not listening yet."
+    warn "Try a longer wait via --wait-seconds or re-run anisette-check after a few minutes."
+  fi
+
+  fail "Anisette container started but health check failed: $url"
+}
+
 anisette_up() {
   local port="$DEFAULT_ANISETTE_PORT"
   local image="$DEFAULT_ANISETTE_IMAGE"
   local container="$DEFAULT_ANISETTE_CONTAINER"
+  local wait_seconds="$DEFAULT_ANISETTE_WAIT_SECONDS"
+  local ca_bundle=""
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -756,6 +908,16 @@ anisette_up() {
         [[ $# -gt 0 ]] || fail "Missing value for --container"
         container="$1"
         ;;
+      --wait-seconds)
+        shift
+        [[ $# -gt 0 ]] || fail "Missing value for --wait-seconds"
+        wait_seconds="$1"
+        ;;
+      --ca-bundle)
+        shift
+        [[ $# -gt 0 ]] || fail "Missing value for --ca-bundle"
+        ca_bundle="$1"
+        ;;
       *)
         fail "Unknown anisette-up option: $1"
         ;;
@@ -763,7 +925,19 @@ anisette_up() {
     shift
   done
 
+  load_helper_config
+  if [[ -z "$ca_bundle" && -n "$HELPER_CFG_ANISETTE_CA_BUNDLE" ]]; then
+    ca_bundle="$HELPER_CFG_ANISETTE_CA_BUNDLE"
+    info "Using anisette CA bundle from helper config: $HELPER_CONFIG_PATH"
+  fi
+
   require_cmd docker
+  [[ "$wait_seconds" =~ ^[0-9]+$ ]] || fail "Invalid --wait-seconds value: $wait_seconds"
+  [[ "$wait_seconds" -ge 1 ]] || fail "--wait-seconds must be >= 1"
+  if [[ -n "$ca_bundle" ]]; then
+    ca_bundle="$(expand_home_path "$ca_bundle")"
+    [[ -f "$ca_bundle" ]] || fail "CA bundle file not found: $ca_bundle"
+  fi
 
   if docker ps -a --format '{{.Names}}' | grep -qx "$container"; then
     info "Removing existing anisette container: $container"
@@ -771,11 +945,18 @@ anisette_up() {
   fi
 
   info "Starting anisette container $container on port $port"
-  docker run -d --name "$container" --restart unless-stopped -p "${port}:6969" "$image" >/dev/null
+  if [[ -n "$ca_bundle" ]]; then
+    info "Using custom CA bundle for anisette container: $ca_bundle"
+    docker run -d --name "$container" --restart unless-stopped -p "${port}:6969" \
+      -v "${ca_bundle}:/etc/ssl/certs/ca-certificates.crt:ro" \
+      "$image" >/dev/null
+  else
+    docker run -d --name "$container" --restart unless-stopped -p "${port}:6969" "$image" >/dev/null
+  fi
 
   local url="http://127.0.0.1:${port}"
   local ok="false"
-  for _ in $(seq 1 30); do
+  for _ in $(seq 1 "$wait_seconds"); do
     if anisette_check "$url" >/dev/null 2>&1; then
       ok="true"
       break
@@ -783,7 +964,7 @@ anisette_up() {
     sleep 1
   done
 
-  [[ "$ok" == "true" ]] || fail "Anisette container started but health check failed: $url"
+  [[ "$ok" == "true" ]] || anisette_healthcheck_failed "$container" "$url"
   info "Anisette server is healthy: $url"
 }
 
@@ -1037,7 +1218,8 @@ doctor() {
 
 run_daemon() {
   local altserver=""
-  local anisette_url="${ALTSERVER_ANISETTE_SERVER:-http://127.0.0.1:${DEFAULT_ANISETTE_PORT}}"
+  local default_anisette_url="http://127.0.0.1:${DEFAULT_ANISETTE_PORT}"
+  local anisette_url="${ALTSERVER_ANISETTE_SERVER:-$default_anisette_url}"
   local debug_level=0
   local mux_socket=""
   local prefer_netmuxd="false"
@@ -1074,6 +1256,12 @@ run_daemon() {
     shift
   done
 
+  load_helper_config
+  if [[ -z "${ALTSERVER_ANISETTE_SERVER:-}" && "$anisette_url" == "$default_anisette_url" && -n "$HELPER_CFG_ANISETTE_URL" ]]; then
+    anisette_url="$HELPER_CFG_ANISETTE_URL"
+    info "Using anisette URL from helper config: $HELPER_CONFIG_PATH"
+  fi
+
   local bin
   bin="$(find_altserver_binary "$altserver")"
 
@@ -1103,7 +1291,8 @@ run_daemon() {
 
 run_install() {
   local altserver=""
-  local anisette_url="${ALTSERVER_ANISETTE_SERVER:-http://127.0.0.1:${DEFAULT_ANISETTE_PORT}}"
+  local default_anisette_url="http://127.0.0.1:${DEFAULT_ANISETTE_PORT}"
+  local anisette_url="${ALTSERVER_ANISETTE_SERVER:-$default_anisette_url}"
   local udid=""
   local apple_id=""
   local password=""
@@ -1163,6 +1352,24 @@ run_install() {
     esac
     shift
   done
+
+  load_helper_config
+  if [[ -z "$udid" && -n "$HELPER_CFG_UDID" ]]; then
+    udid="$HELPER_CFG_UDID"
+    info "Using UDID from helper config: $HELPER_CONFIG_PATH"
+  fi
+  if [[ -z "$apple_id" && -n "$HELPER_CFG_APPLE_ID" ]]; then
+    apple_id="$HELPER_CFG_APPLE_ID"
+    info "Using Apple ID from helper config: $HELPER_CONFIG_PATH"
+  fi
+  if [[ -z "$password" && -n "$HELPER_CFG_APPLE_PASSWORD" ]]; then
+    password="$HELPER_CFG_APPLE_PASSWORD"
+    info "Using Apple password from helper config: $HELPER_CONFIG_PATH"
+  fi
+  if [[ -z "${ALTSERVER_ANISETTE_SERVER:-}" && "$anisette_url" == "$default_anisette_url" && -n "$HELPER_CFG_ANISETTE_URL" ]]; then
+    anisette_url="$HELPER_CFG_ANISETTE_URL"
+    info "Using anisette URL from helper config: $HELPER_CONFIG_PATH"
+  fi
 
   [[ -n "$udid" ]] || fail "--udid is required"
   [[ -n "$apple_id" ]] || fail "--apple-id is required"
@@ -1316,14 +1523,18 @@ Commands:
   netmuxd-check [--bin-path PATH] [--mux-socket HOST:PORT]
     Check netmuxd binary/socket and print discovered device count via netmuxd.
 
-  anisette-up [--port PORT] [--image IMAGE] [--container NAME]
+  anisette-up [--port PORT] [--image IMAGE] [--container NAME] [--wait-seconds N] [--ca-bundle FILE]
     Start local anisette server in Docker and wait for healthy JSON response.
+    If --ca-bundle is omitted, helper config key anisette_ca_bundle is used (if set).
 
   anisette-down [--container NAME]
     Stop/remove anisette container.
 
   anisette-check [--url URL]
     Validate anisette response schema.
+
+  anisette <up|down|check> [...]
+    Alias for anisette-up/anisette-down/anisette-check.
 
   download-altstore [--out FILE] [--source-url URL] [--bundle-id ID] [--url URL]
     Download latest AltStore IPA (default: ./AltStore.ipa in repo root).
@@ -1334,11 +1545,17 @@ Commands:
   daemon [--altserver PATH] [--anisette URL] [--debug-level N] [--mux-socket HOST:PORT] [--prefer-netmuxd]
     Run AltServer in daemon mode (used by AltStore refresh).
 
-  install --udid UDID --apple-id APPLE_ID --password PASSWORD [--ipa FILE] [--altserver PATH] [--anisette URL] [--debug-level N] [--mux-socket HOST:PORT] [--prefer-netmuxd]
+  install [--udid UDID] [--apple-id APPLE_ID] [--password PASSWORD] [--ipa FILE] [--altserver PATH] [--anisette URL] [--debug-level N] [--mux-socket HOST:PORT] [--prefer-netmuxd]
     Install/sign IPA directly with AltServer install mode (default IPA: ./AltStore.ipa).
+    --udid/--apple-id/--password can be omitted if set in helper config.
 
   bootstrap [--skip-deps] [--skip-build] [--skip-anisette] [--skip-altstore] [--release] [--with-netmuxd]
     End-to-end setup workflow for a fresh Arch Linux machine.
+
+Helper config (JSON):
+  Path default: ~/.altserver/helper-config.json
+  Override path with ALTSERVER_DATA_DIR or ALTSTORE_HELPER_CONFIG_FILE.
+  Keys: apple_id, apple_password, udid, anisette_ca_bundle, anisette_url
 USAGE
 }
 
@@ -1379,15 +1596,25 @@ main() {
       anisette_down "$@"
       ;;
     anisette-check)
-      local url="http://127.0.0.1:${DEFAULT_ANISETTE_PORT}"
-      if [[ "${1:-}" == "--url" ]]; then
-        shift
-        [[ $# -gt 0 ]] || fail "Missing value for --url"
-        url="$1"
-        shift
-      fi
-      [[ $# -eq 0 ]] || fail "Unknown anisette-check option: $*"
-      anisette_check "$url"
+      run_anisette_check_cmd "$@"
+      ;;
+    anisette)
+      local subcmd="${1:-}"
+      shift || true
+      case "$subcmd" in
+        up)
+          anisette_up "$@"
+          ;;
+        down)
+          anisette_down "$@"
+          ;;
+        check)
+          run_anisette_check_cmd "$@"
+          ;;
+        *)
+          fail "Unknown anisette subcommand: ${subcmd:-<empty>} (expected: up|down|check)"
+          ;;
+      esac
       ;;
     download-altstore)
       download_altstore "$@"

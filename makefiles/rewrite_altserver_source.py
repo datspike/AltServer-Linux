@@ -71,6 +71,7 @@ if F.endswith('AltServerApp.cpp'):
     content = content.replace(b'#include <strsafe.h>\n', b'')
     content = content.replace(b'#include <ShlObj_core.h>\n', b'')
     content = content.replace(b'#include <winsparkle.h>\n', b'')
+    content = content.replace(b'#include <filesystem>\n', b'#include <filesystem>\n#include <pwd.h>\n')
     content = content.replace(b'#pragma comment( lib, "gdiplus.lib" ) \n', b'')
     content = content.replace(b'#include <gdiplus.h> \n', b'')
     content = content.replace(b'#include "resource.h"\n', b'')
@@ -176,11 +177,39 @@ void AltServerApp::ShowAlert(std::string title, std::string message)
 
 fs::path AltServerApp::appDataDirectoryPath() const
 {
-	fs::path altserverDirectoryPath("./AltServerData");
+	fs::path altserverDirectoryPath;
+
+	const char* explicitDataDirectory = getenv("ALTSERVER_DATA_DIR");
+	if (explicitDataDirectory != NULL && explicitDataDirectory[0] != '\0')
+	{
+		altserverDirectoryPath = fs::path(explicitDataDirectory);
+	}
+	else
+	{
+		const char* homeDirectory = getenv("HOME");
+		if (homeDirectory == NULL || homeDirectory[0] == '\0')
+		{
+			struct passwd* userInfo = getpwuid(getuid());
+			if (userInfo != NULL && userInfo->pw_dir != NULL && userInfo->pw_dir[0] != '\0')
+			{
+				homeDirectory = userInfo->pw_dir;
+			}
+		}
+
+		if (homeDirectory != NULL && homeDirectory[0] != '\0')
+		{
+			altserverDirectoryPath = fs::path(homeDirectory).append(".altserver");
+		}
+		else
+		{
+			odslog("Unable to resolve home directory, falling back to ./AltServerData");
+			altserverDirectoryPath = fs::path("./AltServerData");
+		}
+	}
 
 	if (!fs::exists(altserverDirectoryPath))
 	{
-		fs::create_directory(altserverDirectoryPath);
+		fs::create_directories(altserverDirectoryPath);
 	}
 
 	return altserverDirectoryPath;

@@ -46,6 +46,9 @@ scripts/altstore-linux.sh install \
   --password - \
   --ipa ./AltStore.ipa
 
+# Or use defaults from ~/.altserver/helper-config.json
+scripts/altstore-linux.sh install --ipa ./AltStore.ipa
+
 # 4) Run daemon (keep it running for AltStore refresh/install)
 scripts/altstore-linux.sh daemon --debug-level 0
 ```
@@ -104,9 +107,35 @@ scripts/altstore-linux.sh list-devices
 # Install AltStore (defaults to ./AltStore.ipa)
 scripts/altstore-linux.sh install --udid <UDID> --apple-id <APPLE_ID> --password -
 
+# If helper config is set, credentials/UDID are loaded automatically
+scripts/altstore-linux.sh install --ipa ./AltStore.ipa
+
 # Run daemon
 scripts/altstore-linux.sh daemon --debug-level 0
+
+# Anisette aliases are also supported
+scripts/altstore-linux.sh anisette up
+scripts/altstore-linux.sh anisette check
 ```
+
+## Helper config
+
+The helper can load defaults from `~/.altserver/helper-config.json`:
+
+```json
+{
+  "apple_id": "",
+  "apple_password": "",
+  "udid": "",
+  "anisette_ca_bundle": "",
+  "anisette_url": ""
+}
+```
+
+Notes:
+- `apple_password` is stored in plain text; use strict permissions (`chmod 600 ~/.altserver/helper-config.json`).
+- `anisette_ca_bundle` is used by `anisette-up` automatically when `--ca-bundle` is omitted.
+- Use `ALTSTORE_HELPER_CONFIG_FILE` to point to a different config file.
 
 Draft systemd templates:
 - `contrib/systemd/altserver-linux.service`
@@ -141,11 +170,18 @@ scripts/device-bench.sh install-altstore \
 
 - `ALTSERVER_ANISETTE_SERVER`: custom anisette endpoint.
 - `ALTSERVER_ANISETTE_SERVERS`: fallback list of anisette endpoints (`url1,url2,...`; also supports `;` and spaces).
+- `ALTSERVER_DATA_DIR`: override AltServer data directory (default: `~/.altserver`).
+- `ALTSTORE_HELPER_CONFIG_FILE`: explicit helper config file path (default: `${ALTSERVER_DATA_DIR}/helper-config.json`).
 - `USBMUXD_SOCKET_ADDRESS`: explicit mux socket (for netmuxd extension mode, usually `127.0.0.1:27015`).
 - `ALTSERVER_NETMUXD_SOCKET_ADDRESS`: explicit auto-fallback netmuxd socket.
 - `ALTSERVER_DISABLE_AUTO_NETMUXD=1`: disable automatic usbmuxd→netmuxd fallback.
 - `ALTSERVER_USE_SYSTEM_AFCCLIENT=1`: enable fast USB upload path via system `afcclient`.
 - `ALTSERVER_AFCCLIENT_VERBOSE=1`: extra logs for `afcclient` upload path.
+
+AltServer data directory:
+- by default, Linux build stores signing/cache state in `~/.altserver`;
+- use `ALTSERVER_DATA_DIR` for an explicit location;
+- for multi-machine refresh/install, point `~/.altserver` to a synced directory (for example via symlink).
 
 Anisette fallback order:
 - if `ALTSERVER_ANISETTE_SERVERS` is set: try endpoints from that list in order;

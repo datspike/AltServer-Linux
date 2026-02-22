@@ -106,6 +106,7 @@ PR checklist:
 Never commit:
 
 - Apple ID credentials, app-specific passwords, session cookies.
+- Helper credentials/config from `~/.altserver/helper-config.json` (or custom `ALTSTORE_HELPER_CONFIG_FILE`).
 - Provisioning materials: `.p12`, `.mobileprovision`, pairing artifacts.
 - Runtime/build artifacts: `AltServerData/`, `*_patched/`, `build*/`, static archives, large IPA files.
 - Raw crash dumps containing personal identifiers unless redacted.
