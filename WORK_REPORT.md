@@ -95,6 +95,13 @@ Forks created for patched submodules:
 - `https://github.com/datspike/AltServer-Windows` (branch: `updated-libs-patches`)
 - `https://github.com/datspike/libimobiledevice` (branch: `updated-libs-patches`)
 
+Prepared compare/PR entry points:
+
+- `https://github.com/datspike/AltServer-Windows/compare/master...updated-libs-patches`
+- `https://github.com/datspike/AltServer-Windows/pull/new/updated-libs-patches`
+- `https://github.com/datspike/libimobiledevice/compare/master...updated-libs-patches`
+- `https://github.com/datspike/libimobiledevice/pull/new/updated-libs-patches`
+
 `.gitmodules` updated to point these two submodules to datspike forks.
 
 ## PR candidate list
