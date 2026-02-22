@@ -31,4 +31,24 @@ content = content.replace(
     b'plist_from_memory((const char *)pointer, (unsigned int)length, &parsedPlist, nullptr);'
 )
 
+# Reduce high-volume/sensitive debug noise in CLI logs.
+content = content.replace(
+    b'odslog("Signing Progress: " << signingProgress);',
+    b''
+)
+content = content.replace(
+    b'odslog("Data: " << decryptedData->data());',
+    b''
+)
+content = content.replace(
+    b'odslog("Got token for " << app << "!\\nValue : " << token);',
+    b'odslog("Got token for " << app << "!");'
+)
+content = re.sub(
+    br'odslog\("HMAC_OUT:"\);\s*for\s*\(int i = 0; i < digest_len; i\+\+\)\s*\{.*?\}\s*odslog\("NP:"\);\s*for\s*\(int i = 0; i < digest_len; i\+\+\)\s*\{.*?\}',
+    b'',
+    content,
+    flags=re.S
+)
+
 sys.stdout.buffer.write(content)

@@ -240,22 +240,6 @@ std::shared_ptr<AnisetteData> AnisetteDataManager::FetchAnisetteData()
 					{
 						odslog("parse anisette data ret");
 						json::value jsonVal = previousTask.get();
-						odslog("Got anisetteData json: " << jsonVal);
-						std::vector<std::string> keys = {
-							"X-Apple-I-MD-M",
-							"X-Apple-I-MD",
-							"X-Apple-I-MD-LU",
-							"X-Apple-I-MD-RINFO",
-							"X-Mme-Device-Id",
-							"X-Apple-I-SRL-NO",
-							"X-MMe-Client-Info",
-							"X-Apple-I-Client-Time",
-							"X-Apple-Locale",
-							"X-Apple-I-TimeZone"
-						};
-						for (auto &key : keys) {
-							odslog(key << ": " << jsonVal.at(key).as_string().c_str());
-						}
 
 						struct tm tm = { 0 };
 						strptime(jsonVal.at("X-Apple-I-Client-Time").as_string().c_str(), "%Y-%m-%dT%H:%M:%SZ", &tm);
@@ -281,7 +265,7 @@ std::shared_ptr<AnisetteData> AnisetteDataManager::FetchAnisetteData()
 					});
 			
 			task.wait();
-			odslog(*anisetteData);
+			odslog("Anisette data fetched");
 			return anisetteData;
 		}
 		catch (const std::exception& exception)

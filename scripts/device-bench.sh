@@ -212,7 +212,7 @@ case "$cmd" in
   daemon)
     altserver=""
     seconds=10
-    debug_level=1
+    debug_level=0
     mux_socket=""
     while [[ $# -gt 0 ]]; do
       case "$1" in
@@ -232,7 +232,7 @@ case "$cmd" in
     apple_id=""
     password=""
     ipa=""
-    debug_level=1
+    debug_level=0
     mux_socket=""
     while [[ $# -gt 0 ]]; do
       case "$1" in
