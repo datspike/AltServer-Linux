@@ -17,6 +17,10 @@ Date: 2026-02-22
 7. Added benchmark automation helper: `scripts/device-bench.sh`.
 8. Updated `README.md` with deltas, versions, and validation status.
 9. Extended bench helper with explicit network mode and per-run timeout guards.
+10. Added operational wrapper and systemd drafts:
+   - `scripts/altstore-linux.sh`
+   - `scripts/install-systemd-units.sh`
+   - `contrib/systemd/*.service`
 
 ## Fork/repo state
 

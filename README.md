@@ -52,6 +52,35 @@ docker run --rm -v ${PWD}:/workdir -w /workdir ghcr.io/nyamisty/altserver_builde
   bash -lc 'mkdir -p build && cd build && make -f ../Makefile -j3'
 ```
 
+## Helper CLI
+
+Added wrapper: `scripts/altstore-linux.sh`
+
+```bash
+# Full local bootstrap (deps, build, anisette, AltStore IPA)
+scripts/altstore-linux.sh bootstrap
+
+# Download latest AltStore IPA to repo root
+scripts/altstore-linux.sh download-altstore
+
+# List visible devices
+scripts/altstore-linux.sh list-devices
+
+# Install AltStore (defaults to ./AltStore.ipa)
+scripts/altstore-linux.sh install --udid <UDID> --apple-id <APPLE_ID> --password -
+
+# Run daemon
+scripts/altstore-linux.sh daemon --debug-level 0
+```
+
+Draft systemd templates:
+- `contrib/systemd/altserver-linux.service`
+- `contrib/systemd/altserver-anisette.service`
+- `contrib/systemd/netmuxd.service`
+
+Install helper:
+`scripts/install-systemd-units.sh`
+
 ## Bench / validation helper
 
 ```bash
