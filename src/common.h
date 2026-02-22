@@ -19,5 +19,6 @@ typedef struct timeval TIMEVAL;
 typedef int BOOL;
 
 #ifdef __cplusplus
+#include <memory>
 using std::min;
 #endif

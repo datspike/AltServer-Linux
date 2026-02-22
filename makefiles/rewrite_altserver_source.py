@@ -16,6 +16,16 @@ content = content.replace(b'std::string_convert', b'std::wstring_convert')
 
 content = content.replace(b'boost/filesystem.hpp', b'filesystem')
 content = content.replace(b'boost::filesystem', b'std::filesystem')
+content = content.replace(b'#include <libimobiledevice/src/idevice.h>', b'//#include <libimobiledevice/src/idevice.h>')
+content = content.replace(b'device->conn_type == CONNECTION_USBMUXD', b'false')
+content = content.replace(
+    b'plist_from_memory((const char*)data.data(), (int)data.size(), &plist);',
+    b'plist_from_memory((const char*)data.data(), (int)data.size(), &plist, nullptr);'
+)
+content = content.replace(
+    b'plist_from_memory((const char *)data.data(), (int)data.size(), &plist);',
+    b'plist_from_memory((const char *)data.data(), (int)data.size(), &plist, nullptr);'
+)
 
 if F.endswith('AltServerApp.cpp'):
 

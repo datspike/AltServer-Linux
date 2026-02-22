@@ -18,4 +18,17 @@ content = content.replace(b'localtime(', b'gmtime(')
 
 content = content.replace(b'winsock2.h', b'WinSock2.h')
 
+content = content.replace(
+    b'plist_from_memory((const char *)plistData.data(), (int)plistData.size(), &plist);',
+    b'plist_from_memory((const char *)plistData.data(), (int)plistData.size(), &plist, nullptr);'
+)
+content = content.replace(
+    b'plist_from_memory((const char*)rawEntitlements.data(), (int)rawEntitlements.size(), &plist);',
+    b'plist_from_memory((const char*)rawEntitlements.data(), (int)rawEntitlements.size(), &plist, nullptr);'
+)
+content = content.replace(
+    b'plist_from_memory((const char *)pointer, (unsigned int)length, &parsedPlist);',
+    b'plist_from_memory((const char *)pointer, (unsigned int)length, &parsedPlist, nullptr);'
+)
+
 sys.stdout.buffer.write(content)
