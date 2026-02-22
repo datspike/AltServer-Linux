@@ -82,7 +82,7 @@ Date: 2026-02-22
   - p95: `35.406 MB/s`
   - gate `>=20 MB/s`: PASS
 - Wi-Fi/netmuxd AFC benchmark attempt:
-  - command: `scripts/device-bench.sh afc --network --mux-socket 127.0.0.1:27015 --runs 1 --size-mb 130 --timeout-seconds 8`
+  - command: `scripts/device-bench.sh afc --network --mux-socket 127.0.0.1:27015 --runs 1 --size-mb 130 --timeout-seconds 20`
   - result: timed out (`rc=124`) on `afcclient -n`; network AFC path requires manual validation in target setup.
 
 ### Pending manual/human-in-loop tests
