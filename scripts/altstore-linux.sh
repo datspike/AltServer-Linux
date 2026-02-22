@@ -221,11 +221,6 @@ find_altserver_binary() {
     return 0
   fi
 
-  if [[ -x "$DEFAULT_INSTALL_PATH" ]]; then
-    printf '%s\n' "$DEFAULT_INSTALL_PATH"
-    return 0
-  fi
-
   asset="$(arch_to_asset)"
   candidate="$BUILD_DIR/$asset"
   if [[ -x "$candidate" ]]; then
@@ -236,6 +231,11 @@ find_altserver_binary() {
   candidate="$(find "$BUILD_DIR" -maxdepth 1 -type f -name 'AltServer-*' | head -n1 || true)"
   if [[ -n "$candidate" && -x "$candidate" ]]; then
     printf '%s\n' "$candidate"
+    return 0
+  fi
+
+  if [[ -x "$DEFAULT_INSTALL_PATH" ]]; then
+    printf '%s\n' "$DEFAULT_INSTALL_PATH"
     return 0
   fi
 
@@ -1071,6 +1071,7 @@ run_daemon() {
   done
 
   info "Starting AltServer daemon"
+  info "AltServer binary: $bin"
   info "ALTSERVER_ANISETTE_SERVER=$anisette_url"
   if [[ -n "$mux_socket" ]]; then
     info "USBMUXD_SOCKET_ADDRESS=$mux_socket"
@@ -1169,6 +1170,7 @@ run_install() {
   done
 
   info "Installing IPA with AltServer"
+  info "AltServer binary: $bin"
   info "Device UDID: $udid"
   if [[ -n "$mux_socket" ]]; then
     info "USBMUXD_SOCKET_ADDRESS=$mux_socket"
