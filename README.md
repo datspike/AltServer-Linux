@@ -28,6 +28,36 @@ Base reference: `NyaMisty/AltServer-Linux` branch `new` (`78764512`).
 - `libraries/libimobiledevice-glue`: `1.3.2` (`aef2bf0f5bfe`)
 - `upstream_repo`: `2ef20b38db9c` + local patch branch (`updated-libs-patches`)
 
+## Fast start
+
+Minimal flow with wrapper script:
+
+```bash
+# 1) Prepare host: deps + build + anisette (+ AltStore.ipa)
+scripts/altstore-linux.sh bootstrap
+
+# 2) (Optional) Refresh AltStore IPA to latest release
+scripts/altstore-linux.sh download-altstore
+
+# 3) Install AltStore to iPhone (password prompt with `-`)
+scripts/altstore-linux.sh install \
+  --udid <UDID> \
+  --apple-id <APPLE_ID> \
+  --password - \
+  --ipa ./AltStore.ipa
+
+# 4) Run daemon (keep it running for AltStore refresh/install)
+scripts/altstore-linux.sh daemon --debug-level 0
+```
+
+After first install, open iOS Settings and trust the developer app/profile, then try installing any test IPA from AltStore.
+
+Wi-Fi install/refresh is expected when prerequisites are met:
+- device is already paired/trusted with this host (usually first pairing via USB);
+- iPhone and Linux host are on the same network;
+- Wi-Fi sync is enabled for the device (Finder/iTunes setting);
+- `usbmuxd`/`netmuxd` path is available (`--prefer-netmuxd` for explicit network path).
+
 ## Usage
 
 - Install IPA: `./build/AltServer-<arch> -u <UDID> -a <APPLE_ID> -p <PASSWORD> <file.ipa>`
