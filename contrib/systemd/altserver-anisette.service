@@ -1,0 +1,16 @@
+[Unit]
+Description=AltServer Anisette Docker Service
+After=docker.service network-online.target
+Wants=docker.service network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStartPre=-/usr/bin/docker rm -f altserver-anisette
+ExecStart=/usr/bin/docker run -d --name altserver-anisette --restart unless-stopped -p 6969:6969 dadoum/anisette-v3-server:latest
+ExecStop=/usr/bin/docker rm -f altserver-anisette
+TimeoutStartSec=120
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

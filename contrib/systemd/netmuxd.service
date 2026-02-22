@@ -1,0 +1,14 @@
+[Unit]
+Description=netmuxd extension daemon for AltServer-Linux
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/netmuxd --disable-unix --host 127.0.0.1 --port 27015
+Restart=on-failure
+RestartSec=2
+Environment=RUST_LOG=warn
+
+[Install]
+WantedBy=multi-user.target
