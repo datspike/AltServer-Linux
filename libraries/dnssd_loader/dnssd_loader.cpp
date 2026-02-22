@@ -1,7 +1,9 @@
 #include "dns_sd.h"
 #include <iostream>
 #include <string>
+#include <vector>
 #include <unistd.h>
+#include <arpa/inet.h>
 #include <sys/prctl.h> // prctl(), PR_SET_PDEATHSIG
 #include <signal.h> // signals
 
@@ -21,40 +23,32 @@ DNSServiceErrorType DNSSD_API DNSServiceRegister
     DNSServiceRegisterReply             callBack,      /* may be NULL */
     void                                *context       /* may be NULL */
     ) {
-        // python3 -c 'from ctypes import *; sdRef = c_int(); CDLL('libdns_sd.so').DNSServiceRegister(byref(sdRef), flags, interfaceIndex, name, regtype, domain, host, txtLen, txtRecord, None, None)'
-        std::string pyCommand = "from ctypes import *; dll = CDLL('libdns_sd.so'); ";
+        std::string serviceName = name ? name : "AltServer";
+        std::string serviceType = regtype ? regtype : "_altserver._tcp";
+        std::string portString = std::to_string(ntohs(port));
 
-        pyCommand += "sdRef = c_int(); ";
-#define INT_ARG(argname) (std::string("") + #argname " = " + std::to_string(argname) + "; ")
-#define STR_ARG(argname) (argname ? std::string(#argname " = br'") + argname + "'; " : std::string(#argname " = None; "))
-        pyCommand += INT_ARG(flags);
-        pyCommand += INT_ARG(interfaceIndex);
-        pyCommand += STR_ARG(name);
-        pyCommand += STR_ARG(regtype);
-        pyCommand += STR_ARG(domain);
-        pyCommand += STR_ARG(host);
-        pyCommand += INT_ARG(port);
-        pyCommand += INT_ARG(txtLen);
-        
-        std::string txtRecordHex = "";
-        for (int i = 0; i < txtLen; i++) {
-            char buf[16] = { 0 };
-            sprintf(buf, "\\x%02X", *((char *)txtRecord + i));
-            txtRecordHex += buf;
+        std::vector<std::string> txtEntries;
+        if (txtRecord && txtLen > 0) {
+            const unsigned char* p = (const unsigned char*)txtRecord;
+            int i = 0;
+            while (i < txtLen) {
+                unsigned int entryLen = p[i++];
+                if (i + (int)entryLen > txtLen) {
+                    break;
+                }
+                txtEntries.emplace_back((const char*)(p + i), entryLen);
+                i += entryLen;
+            }
         }
-        pyCommand += "txtRecord = b'" + txtRecordHex + "'; ";
-        pyCommand += "ret = dll.DNSServiceRegister(byref(sdRef), flags, interfaceIndex, name, regtype, domain, host, port, txtLen, txtRecord, None, None); ";
-        pyCommand += "print('DNSServiceRegister result: %d' % ret); ";
 
-        pyCommand += "from threading import Event; Event().wait(); ";
-        
-        printf("Running python3 command to advertise AltServer: %s\n", pyCommand.c_str());
+        printf("Publishing mDNS service via avahi-publish-service: name=%s type=%s port=%s\n",
+               serviceName.c_str(), serviceType.c_str(), portString.c_str());
 
         pid_t ppid_before_fork = getpid();
         int child,status;
         if ((child = fork()) < 0) {
             perror("fork");
-            return EXIT_FAILURE;
+            return kDNSServiceErr_Unknown;
         }
         if(child == 0){
             int r = prctl(PR_SET_PDEATHSIG, SIGTERM);
@@ -63,12 +57,28 @@ DNSServiceErrorType DNSSD_API DNSServiceRegister
             // before the prctl() call
             if (getppid() != ppid_before_fork)
                 exit(1);
-            execlp("python3", "python3", "-c", pyCommand.c_str(), NULL);
+
+            std::vector<std::string> args;
+            args.emplace_back("avahi-publish-service");
+            args.emplace_back(serviceName);
+            args.emplace_back(serviceType);
+            args.emplace_back(portString);
+            for (const auto& txt : txtEntries) {
+                args.emplace_back(txt);
+            }
+
+            std::vector<char*> argv;
+            for (auto& arg : args) {
+                argv.push_back((char*)arg.c_str());
+            }
+            argv.push_back(NULL);
+
+            execvp("avahi-publish-service", argv.data());
             exit(1);
         } else {
             ;
         }
-        return 0;
+        return kDNSServiceErr_NoError;
     }
 
 int DNSSD_API DNSServiceRefSockFD(DNSServiceRef sdRef) {
