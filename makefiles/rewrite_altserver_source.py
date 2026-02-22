@@ -27,6 +27,38 @@ content = content.replace(
     b'plist_from_memory((const char *)data.data(), (int)data.size(), &plist, nullptr);'
 )
 
+# Drop high-volume transport debug logs that spam daemon/install output.
+content = re.sub(
+    br'^\s*std::cout << "Represented Value: " << \*\(\(int32_t\*\)responseSizeData\.data\(\)\) << std::endl;\r?\n?',
+    b'',
+    content,
+    flags=re.M,
+)
+content = re.sub(
+    br'^\s*std::cout << "Sent Bytes Count: " << sentBytes << " \(" << totalSentBytes << "\)" << std::endl;\r?\n?',
+    b'',
+    content,
+    flags=re.M,
+)
+content = re.sub(
+    br'^\s*std::cout << "Sent Data: " << totalSentBytes << " Bytes" << std::endl;\r?\n?',
+    b'',
+    content,
+    flags=re.M,
+)
+content = re.sub(
+    br'^\s*std::cout << "Checking socket: " << socket << std::endl;\r?\n?',
+    b'',
+    content,
+    flags=re.M,
+)
+content = re.sub(
+    br'^\s*odslog\("Received bytes: " << data\.size\(\) << "\(of " << size << "\)"\);\r?\n?',
+    b'',
+    content,
+    flags=re.M,
+)
+
 if F.endswith('AltServerApp.cpp'):
 
     # MessageBox
