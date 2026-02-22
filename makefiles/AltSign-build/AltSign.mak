@@ -20,7 +20,7 @@ CXXFLAGS = $(CFLAGS) -std=c++17
 altsign_orifiles := $(wildcard $(ALTSIGN_ROOT)/*.*)
 altsign_newfiles := $(altsign_orifiles:$(ALTSIGN_ROOT)/%=$(ALTSIGN_NEWROOT)/%)
 
-$(ALTSIGN_NEWROOT)/%: $(ALTSIGN_ROOT)/%
+$(ALTSIGN_NEWROOT)/%: $(ALTSIGN_ROOT)/% $(ROOT_DIR)/rewrite_altsign_source.py
 	mkdir -p `dirname "$@"`
 	python3 $(ROOT_DIR)/rewrite_altsign_source.py "$<" > $@
 
@@ -31,7 +31,7 @@ altsign_src := $(filter %.cpp,$(altsign_newfiles))
 ldid_orifiles := $(LDID_ROOT)/ldid.cpp $(LDID_ROOT)/lookup2.c
 ldid_newfiles := $(ldid_orifiles:$(LDID_ROOT)/%=$(LDID_NEWROOT)/%)
 
-$(LDID_NEWROOT)/%: $(LDID_ROOT)/%
+$(LDID_NEWROOT)/%: $(LDID_ROOT)/% $(ROOT_DIR)/rewrite_ldid_source.py
 	mkdir -p `dirname "$@"`
 	python3 $(ROOT_DIR)/rewrite_ldid_source.py "$<" > $@
 
