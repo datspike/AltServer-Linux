@@ -1,73 +1,93 @@
-# AltServer-Linux
-AltServer for AltStore, but on-device
+# AltServer-Linux (updated-libs fork)
+
+Linux port of AltServer with an updated dependency stack and USB/Wi-Fi install-path fixes.
+
+Base reference: `NyaMisty/AltServer-Linux` branch `new` (`78764512`).
+
+## What changed vs `NyaMisty/new`
+
+- Dependency refresh to current stable tags (`libplist`, `libusbmuxd`, `libimobiledevice`, `ideviceinstaller`, `libimobiledevice-glue`) and latest `upstream_repo` `develop`.
+- Additional runtime fixes ported from `working-26.3` onto latest upstream:
+  - USB-first with automatic netmuxd fallback in `DeviceManager`.
+  - Single-file IPA staging for faster `Writing to device...`.
+  - Optional system `afcclient` fast path for large USB payloads.
+  - `[WRITE]` progress/speed telemetry (begin/progress/done with MB/s).
+  - Notification proxy timing improvements in `libimobiledevice`.
+- Build defaults changed to release (`-O2 -DNDEBUG`), debug build is opt-in via `make DEBUG=1`.
+- Added contributor/agent docs and a bench helper script:
+  - `CONTRIBUTING.md`
+  - `AGENTS.md`
+  - `scripts/device-bench.sh`
+
+## Submodule versions
+
+- `libraries/libplist`: `2.7.0` (`cf5897a71ea4`)
+- `libraries/libusbmuxd`: `2.1.1` (`adf9c22b9010`)
+- `libraries/libimobiledevice`: `1.4.0` + local patch branch (`updated-libs-patches`)
+- `libraries/ideviceinstaller`: `1.2.0` (`1762d5f12fc5`)
+- `libraries/libimobiledevice-glue`: `1.3.2` (`aef2bf0f5bfe`)
+- `upstream_repo`: `2ef20b38db9c` + local patch branch (`updated-libs-patches`)
 
 ## Usage
 
-- Install IPA: `./AltServer -u [UDID] -a [AppleID account] -p [AppleID password] [ipaPath.ipa]`
-- Running as AltServer Daemon: `./AltServer`
-- Full usage (maybe outdated, refer to `./AltServer -h` for the newest):
-```
-Usage:  AltServer-Linux options [ ipa-file ]
-  -h  --help             Display this usage information.
-  -u  --udid UDID        Device's UDID, only needed when installing IPA.
-  -a  --appleID AppleID  Apple ID to sign the ipa, only needed when installing IPA.
-  -p  --password passwd  Password of Apple ID, only needed when installing IPA.
-  -d  --debug            Print debug output, can be used several times to increase debug level.
+- Install IPA: `./build/AltServer-<arch> -u <UDID> -a <APPLE_ID> -p <PASSWORD> <file.ipa>`
+- Run daemon: `./build/AltServer-<arch>`
+- Help: `./build/AltServer-<arch> --help`
 
-The following environment var can be set for some special situation:
-  - ALTSERVER_ANISETTE_SERVER: Set to custom anisette server URL
-          if not set, the default one: https://armconverter.com/anisette/irGb3Quww8zrhgqnzmrx, is used
-  - ALTSERVER_NO_SUBSCRIBE: (*unused*) Please enable this for usbmuxd server that do not correctly usbmuxd_listen interfaces
+## Build
+
+### Local
+
+```bash
+git submodule update --init --recursive
+mkdir -p build
+cd build
+make -f ../Makefile -j3
 ```
 
-## Download
+### Docker (CI-like)
 
-- Precompiled static binary can be downloaded in Release ( also have a look at pre-release ;) )
-- Nightly version is available as Github Actions artifacts
+```bash
+docker run --rm -v ${PWD}:/workdir -w /workdir ghcr.io/nyamisty/altserver_builder_alpine_amd64 \
+  bash -lc 'mkdir -p build && cd build && make -f ../Makefile -j3'
+```
 
-## TODO / Special Features
-- [x] Track upstream (AltServer-Windows) develop branch (i.e. Beta version)
-- [x] Support Offline Anisette Data Generation (i.e. without Sideloadly)
-  - Finsihed, please run [alt_anisette_server](https://hub.docker.com/r/nyamisty/alt_anisette_server) & use `ALTSERVER_ANISETTE_SERVER` to specify custom server URL
-- [x] Support Wi-Fi Refresh
-  - [netmuxd](https://github.com/jkcoxson/netmuxd) now supports network devices (needs version > v0.1.1, be sure to check pre-release)
-    - Download `netmuxd`, stop the original `usbmuxd`, and run `netmuxd` before running `AltServer-Linux`
-    - ~If netmuxd does not work, please try using special env var `ALTSERVER_NO_SUBSCRIBE`. Enabling this would disable **auto-refresh when plugged-in** of USB devices~
+## Bench / validation helper
 
-----
+```bash
+# USB AFC throughput benchmark (MB/s)
+scripts/device-bench.sh afc --runs 3 --size-mb 130
 
-## Advanced: Build Instruction (check Github Actions if you cannot build)
+# Daemon smoke run with log extraction
+scripts/device-bench.sh daemon --altserver ./build/AltServer-x86_64 --seconds 10 --debug-level 1
 
-- Preparation: `git clone --recursive https://github.com/NyaMisty/AltServer-Linux`
+# AltStore install (prompts for password when --password -)
+scripts/device-bench.sh install-altstore \
+  --altserver ./build/AltServer-x86_64 \
+  --udid <UDID> \
+  --apple-id <APPLE_ID> \
+  --password - \
+  --ipa ./AltStore.ipa
+```
 
-- Install dependencies (see notes below): corecrypto_static, cpprestsdk static lib, boost static lib
+## Runtime env vars
 
-- Build:
-  ```
-  cd AltServer-Linux
-  mkdir build
-  make -f ../Makefile -j3
-  ls AltServer-*
-  ```
+- `ALTSERVER_ANISETTE_SERVER`: custom anisette endpoint.
+- `USBMUXD_SOCKET_ADDRESS`: explicit mux socket (for netmuxd extension mode, usually `127.0.0.1:27015`).
+- `ALTSERVER_NETMUXD_SOCKET_ADDRESS`: explicit auto-fallback netmuxd socket.
+- `ALTSERVER_DISABLE_AUTO_NETMUXD=1`: disable automatic usbmuxd→netmuxd fallback.
+- `ALTSERVER_USE_SYSTEM_AFCCLIENT=1`: enable fast USB upload path via system `afcclient`.
+- `ALTSERVER_AFCCLIENT_VERBOSE=1`: extra logs for `afcclient` upload path.
 
-- My own build note for you 
-  ```
-    1. Run alpine docker (change --platform to corresponding architecture you want): 
-        docker run --platform=linux/arm/v7 --name altserver-builder-alpine-armv7 -it alpine:3.15 
-    2. Install dependencies:
-        apk add zsh git curl wget g++ clang boost-static ninja boost-dev cmake make sudo bash vim libressl-dev util-linux-dev zlib-dev zlib-static
-    3. Install corecrypto
-        download corecrypto from apple website, unzip corecrypto.zip; cd corecrypto; mkdir build; cd build; CC=clang CXX=clang++ cmake ..;
-        vim CMakeFiles/Makefile2, delete line starts with "all: corecrypto_perf/....." and "all: corecrypto_test/.....", then make; make install
-    4. Install cpprestsdk
-        git clone --recursive https://github.com/microsoft/cpprestsdk; cd cpprestsdk; mkdir build; cmake -DBUILD_SHARED_LIBS=0 ..; make; make install
-	    (if you're compiling for armv7, you have to grep -Wcast-align, and remove it, or the compiling would fail)
-    5. Install libzip
-        git clone https://github.com/nih-at/libzip; cd libzip; mkdir build; cd build; cmake -DBUILD_SHARED_LIBS=0 ..; make; make install
-    6. Compile AltServer-Linux
-        git clone --recursive https://github.com/NyaMisty/AltServer-Linux
-        cd AltServer-Linux
-        make -f ../Makefile -j3
-	    (if you're compiling for ARM, i.e. armv7 or aarch64, you'll have to remove the -mno-default flag in Makefile)
+## Current validation snapshot
 
-  ```
+- Docker build (`amd64`): pass.
+- Daemon smoke with USB-connected iPhone: pass (device detected, notification connection starts).
+- USB AFC benchmark (`130 MB`, 3 runs): median `36.158 MB/s`, p95 `36.351 MB/s`.
+- Wi-Fi/netmuxd benchmark: requires a network-visible device on netmuxd socket.
+
+## Known limitations
+
+- iOS trust / developer confirmation dialogs are manual (human-in-the-loop).
+- Full end-to-end AltStore install/IPA tests require Apple ID credentials and device interaction.
+- Multi-arch container pulls can be slow on first run (large builder images).
