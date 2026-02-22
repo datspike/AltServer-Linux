@@ -5,7 +5,7 @@ SCRIPT_NAME="$(basename "$0")"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="$REPO_ROOT/build"
 
-DEFAULT_BUILDER_IMAGE="ghcr.io/nyamisty/altserver_builder_alpine_amd64"
+DEFAULT_BUILDER_IMAGE_BASE="ghcr.io/nyamisty/altserver_builder_alpine"
 DEFAULT_LOCAL_BUILDER_IMAGE="altserver-builder-local"
 DEFAULT_ANISETTE_IMAGE="dadoum/anisette-v3-server:latest"
 DEFAULT_ANISETTE_CONTAINER="altserver-anisette"
@@ -190,6 +190,26 @@ ensure_build_dir_writable() {
   rm -f "$BUILD_DIR/.write-test"
 }
 
+arch_to_builder_suffix() {
+  case "$(uname -m)" in
+    x86_64|amd64)
+      printf 'amd64'
+      ;;
+    aarch64|arm64)
+      printf 'aarch64'
+      ;;
+    armv7l)
+      printf 'armv7'
+      ;;
+    i386|i686)
+      printf 'i386'
+      ;;
+    *)
+      printf 'amd64'
+      ;;
+  esac
+}
+
 arch_to_asset() {
   case "$(uname -m)" in
     x86_64|amd64)
@@ -303,7 +323,7 @@ build_altserver() {
   local install_after="false"
   local install_path="$DEFAULT_INSTALL_PATH"
   local artifact=""
-  local image="$DEFAULT_BUILDER_IMAGE"
+  local image="${DEFAULT_BUILDER_IMAGE_BASE}_$(arch_to_builder_suffix)"
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
