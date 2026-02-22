@@ -2,6 +2,18 @@ name: Build AltServer
 
 on:
   push:
+    paths:
+      - '.github/workflows/build.yml'
+      - '.github/workflows/build_docker.yml'
+      - '.gitmodules'
+      - 'Makefile'
+      - 'makefiles/**'
+      - 'src/**'
+      - 'shims/**'
+      - 'libraries/**'
+      - 'upstream_repo'
+      - 'scripts/**'
+      - 'buildenv/**'
   workflow_dispatch:
 
 
