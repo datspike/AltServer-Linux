@@ -18,6 +18,22 @@ content = content.replace(b'localtime(', b'gmtime(')
 
 content = content.replace(b'winsock2.h', b'WinSock2.h')
 
+if F.endswith('AppleAPI+Authentication.cpp'):
+    content = content.replace(
+        b'"akd/1.0 CFNetwork/978.0.7 Darwin/18.7.0"',
+        b'"AuthKit/1 (Macintosh; OS X 26.5.2) (com.apple.dt.Xcode/26.0)"',
+    )
+    content, replacements = re.subn(
+        br'(uri_builder builder\(U\("/grandslam/GsService2"\)\);\s*http_request request\(methods::POST\);.*?for \(auto& pair : headers\)\s*\{.*?\}\s*)auto task = this->gsaClient\(\)\.request\(request\)',
+        lambda match: match.group(1) + b'http_client_config config;\n\tconfig.set_validate_certificates(false);\n\tauto gsaClient = std::make_shared<http_client>(U("https://gsa.apple.com"), config);\n\tauto task = gsaClient->request(request)',
+        content,
+        count=1,
+        flags=re.S,
+    )
+    if replacements != 1:
+        print('Не удалось отключить переиспользование GrandSlam-соединения в SendAuthenticationRequest', file=sys.stderr)
+        sys.exit(1)
+
 # Под iOS 26.4+ старую подпись ldid отклоняет TXM, поэтому используем rcodesign.
 # Остальная подготовка bundle остаётся в AltSign: профиль, entitlements и сертификат уже готовы.
 if F.endswith('Signer.cpp'):
