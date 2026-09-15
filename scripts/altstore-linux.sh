@@ -41,9 +41,10 @@ HELPER_CONFIG_DATA_DIR=""
 HELPER_CONFIG_PATH=""
 HELPER_CFG_APPLE_ID=""
 HELPER_CFG_APPLE_PASSWORD=""
-HELPER_CFG_UDID=""
+HELPER_CFG_UDIDS=()
 HELPER_CFG_ANISETTE_CA_BUNDLE=""
 HELPER_CFG_ANISETTE_URL=""
+LAST_ALTSTORE_VERSION=""
 
 info() {
   printf '[INFO] %s\n' "$*"
@@ -134,6 +135,25 @@ for key in keys:
     if not isinstance(value, str):
         value = str(value)
     print(value.replace("\r", "").replace("\n", " "))
+
+if "udids" in data:
+    udids = data["udids"]
+    if not isinstance(udids, list) or not all(isinstance(udid, str) for udid in udids):
+        print("'udids' must be an array of strings", file=sys.stderr)
+        sys.exit(1)
+else:
+    legacy_udid = data.get("udid", "")
+    if legacy_udid is None:
+        legacy_udid = ""
+    if not isinstance(legacy_udid, str):
+        print("'udid' must be a string", file=sys.stderr)
+        sys.exit(1)
+    udids = [legacy_udid] if legacy_udid else []
+
+for udid in udids:
+    normalized = udid.replace("\r", "").replace("\n", " ").strip()
+    if normalized:
+        print(normalized)
 PY
 )"; then
     fail "Failed to parse helper config: $HELPER_CONFIG_PATH"
@@ -143,7 +163,7 @@ PY
   mapfile -t cfg_lines <<< "$values"
   HELPER_CFG_APPLE_ID="${cfg_lines[0]:-}"
   HELPER_CFG_APPLE_PASSWORD="${cfg_lines[1]:-}"
-  HELPER_CFG_UDID="${cfg_lines[2]:-}"
+  HELPER_CFG_UDIDS=("${cfg_lines[@]:5}")
   HELPER_CFG_ANISETTE_CA_BUNDLE="${cfg_lines[3]:-}"
   HELPER_CFG_ANISETTE_URL="${cfg_lines[4]:-}"
 
@@ -1045,6 +1065,8 @@ download_altstore() {
     [[ -n "$url" ]] || fail "Could not find download URL for bundle '${bundle_id}' in source: $source_url"
   fi
 
+  LAST_ALTSTORE_VERSION="$release_tag"
+
   local output_dir
   output_dir="$(dirname "$output")"
   mkdir -p "$output_dir"
@@ -1354,10 +1376,6 @@ run_install() {
   done
 
   load_helper_config
-  if [[ -z "$udid" && -n "$HELPER_CFG_UDID" ]]; then
-    udid="$HELPER_CFG_UDID"
-    info "Using UDID from helper config: $HELPER_CONFIG_PATH"
-  fi
   if [[ -z "$apple_id" && -n "$HELPER_CFG_APPLE_ID" ]]; then
     apple_id="$HELPER_CFG_APPLE_ID"
     info "Using Apple ID from helper config: $HELPER_CONFIG_PATH"
@@ -1371,7 +1389,6 @@ run_install() {
     info "Using anisette URL from helper config: $HELPER_CONFIG_PATH"
   fi
 
-  [[ -n "$udid" ]] || fail "--udid is required"
   [[ -n "$apple_id" ]] || fail "--apple-id is required"
   [[ -n "$password" ]] || fail "--password is required ('-' to prompt securely)"
   [[ -f "$ipa" ]] || fail "IPA file not found: $ipa (use '$SCRIPT_NAME download-altstore' or pass --ipa FILE)"
@@ -1388,6 +1405,34 @@ run_install() {
     mux_socket="$(default_mux_socket)"
   fi
 
+  local target_udids=()
+  if [[ -n "$udid" ]]; then
+    target_udids=("$udid")
+  else
+    [[ "${#HELPER_CFG_UDIDS[@]}" -gt 0 ]] || fail "--udid is required or configure 'udids' in $HELPER_CONFIG_PATH"
+    require_cmd idevice_id
+
+    local idevice_id_mode=(-l)
+    if [[ "$prefer_netmuxd" == "true" ]] || ([[ -n "$mux_socket" ]] && [[ "$mux_socket" != UNIX:* ]]); then
+      idevice_id_mode=(-n)
+    fi
+
+    local connected_udids=()
+    mapfile -t connected_udids < <(run_mux_cmd "$mux_socket" idevice_id "${idevice_id_mode[@]}" 2>/dev/null || true)
+    local configured_udid
+    local connected_udid
+    for configured_udid in "${HELPER_CFG_UDIDS[@]}"; do
+      for connected_udid in "${connected_udids[@]}"; do
+        if [[ "$configured_udid" == "$connected_udid" ]]; then
+          target_udids+=("$configured_udid")
+          break
+        fi
+      done
+    done
+    [[ "${#target_udids[@]}" -gt 0 ]] || fail "No configured iOS devices are currently connected"
+    info "Using ${#target_udids[@]} configured connected device(s) from helper config: $HELPER_CONFIG_PATH"
+  fi
+
   anisette_check "$anisette_url"
 
   local debug_flags=()
@@ -1396,15 +1441,18 @@ run_install() {
     debug_flags+=("-d")
   done
 
-  info "Installing IPA with AltServer"
-  info "AltServer binary: $bin"
-  info "Device UDID: $udid"
-  if [[ -n "$mux_socket" ]]; then
-    info "USBMUXD_SOCKET_ADDRESS=$mux_socket"
-    ALTSERVER_ANISETTE_SERVER="$anisette_url" USBMUXD_SOCKET_ADDRESS="$mux_socket" "$bin" "${debug_flags[@]}" -u "$udid" -a "$apple_id" -p "$password" "$ipa"
-  else
-    ALTSERVER_ANISETTE_SERVER="$anisette_url" "$bin" "${debug_flags[@]}" -u "$udid" -a "$apple_id" -p "$password" "$ipa"
-  fi
+  local target_udid
+  for target_udid in "${target_udids[@]}"; do
+    info "Installing IPA with AltServer"
+    info "AltServer binary: $bin"
+    info "Device UDID: $target_udid"
+    if [[ -n "$mux_socket" ]]; then
+      info "USBMUXD_SOCKET_ADDRESS=$mux_socket"
+      ALTSERVER_ANISETTE_SERVER="$anisette_url" USBMUXD_SOCKET_ADDRESS="$mux_socket" "$bin" "${debug_flags[@]}" -u "$target_udid" -a "$apple_id" -p "$password" "$ipa"
+    else
+      ALTSERVER_ANISETTE_SERVER="$anisette_url" "$bin" "${debug_flags[@]}" -u "$target_udid" -a "$apple_id" -p "$password" "$ipa"
+    fi
+  done
 }
 
 bootstrap() {
@@ -1480,6 +1528,8 @@ bootstrap() {
 
 Bootstrap completed.
 
+AltStore IPA: version ${LAST_ALTSTORE_VERSION:-unknown} (${DEFAULT_ALTSTORE_OUTPUT})
+
 Next steps:
 1. Plug iPhone via USB and tap Trust.
 2. Run: $SCRIPT_NAME list-devices
@@ -1547,7 +1597,8 @@ Commands:
 
   install [--udid UDID] [--apple-id APPLE_ID] [--password PASSWORD] [--ipa FILE] [--altserver PATH] [--anisette URL] [--debug-level N] [--mux-socket HOST:PORT] [--prefer-netmuxd]
     Install/sign IPA directly with AltServer install mode (default IPA: ./AltStore.ipa).
-    --udid/--apple-id/--password can be omitted if set in helper config.
+    Without --udid, install on every connected device configured in helper config.
+    --apple-id/--password can be omitted if set in helper config.
 
   bootstrap [--skip-deps] [--skip-build] [--skip-anisette] [--skip-altstore] [--release] [--with-netmuxd]
     End-to-end setup workflow for a fresh Arch Linux machine.
@@ -1555,7 +1606,8 @@ Commands:
 Helper config (JSON):
   Path default: ~/.altserver/helper-config.json
   Override path with ALTSERVER_DATA_DIR or ALTSTORE_HELPER_CONFIG_FILE.
-  Keys: apple_id, apple_password, udid, anisette_ca_bundle, anisette_url
+  Keys: apple_id, apple_password, udids, anisette_ca_bundle, anisette_url.
+  Legacy single-device key udid is also supported.
 USAGE
 }
 

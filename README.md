@@ -114,7 +114,7 @@ scripts/altstore-linux.sh list-devices
 # Install AltStore (defaults to ./AltStore.ipa)
 scripts/altstore-linux.sh install --udid <UDID> --apple-id <APPLE_ID> --password -
 
-# If helper config is set, credentials/UDID are loaded automatically
+# If helper config is set, install on every configured device currently visible to usbmuxd/netmuxd
 scripts/altstore-linux.sh install --ipa ./AltStore.ipa
 
 # Run daemon
@@ -133,13 +133,18 @@ The helper can load defaults from `~/.altserver/helper-config.json`:
 {
   "apple_id": "",
   "apple_password": "",
-  "udid": "",
+  "udids": [
+    "00008150-000204682E99401C",
+    "00008130-000C4C342E51001C"
+  ],
   "anisette_ca_bundle": "",
   "anisette_url": ""
 }
 ```
 
 Notes:
+- `install` without `--udid` signs and installs on every configured device that is currently visible to the selected mux service. Use `--udid` to target exactly one device.
+- The old single-device `udid` key remains supported for existing configurations; use `udids` for new configurations.
 - `apple_password` is stored in plain text; use strict permissions (`chmod 600 ~/.altserver/helper-config.json`).
 - `anisette_ca_bundle` is used by `anisette-up` automatically when `--ca-bundle` is omitted.
 - Use `ALTSTORE_HELPER_CONFIG_FILE` to point to a different config file.
