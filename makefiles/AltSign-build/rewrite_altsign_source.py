@@ -33,6 +33,38 @@ if F.endswith('AppleAPI+Authentication.cpp'):
     if replacements != 1:
         print('Не удалось отключить переиспользование GrandSlam-соединения в SendAuthenticationRequest', file=sys.stderr)
         sys.exit(1)
+    # Сохраняем этап до освобождения plist запроса; не выводим учётные данные.
+    phase_marker = b'\tauto header = plist_new_dict();'
+    phase_diagnostic = br'''
+    const char* authPhase = "other";
+    const auto operation = requestParameters.find("o");
+    if (operation != requestParameters.end())
+    {
+        char* rawOperation = nullptr;
+        plist_get_string_val(operation->second, &rawOperation);
+        if (rawOperation != nullptr)
+        {
+            const std::string name(rawOperation);
+            if (name == "init") authPhase = "init";
+            else if (name == "complete") authPhase = "complete";
+            else if (name == "apptokens") authPhase = "apptokens";
+            free(rawOperation);
+        }
+    }
+'''
+    if content.count(phase_marker) != 1:
+        print('Не удалось добавить диагностику этапа GrandSlam', file=sys.stderr)
+        sys.exit(1)
+    content = content.replace(phase_marker, phase_diagnostic + phase_marker, 1)
+    content, replacements = re.subn(
+        br'(switch \(resultCode\)\s*\{\s*case 0: return dictionary;)',
+        br'odslog("GSA " << authPhase << " response code: " << resultCode);\n\t\t\t\t\1',
+        content,
+        count=1,
+    )
+    if replacements != 1:
+        print('Не удалось добавить диагностику кода GrandSlam', file=sys.stderr)
+        sys.exit(1)
 
 # Под iOS 26.4+ старую подпись ldid отклоняет TXM, поэтому используем rcodesign.
 # Остальная подготовка bundle остаётся в AltSign: профиль, entitlements и сертификат уже готовы.
