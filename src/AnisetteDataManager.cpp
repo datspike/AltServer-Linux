@@ -256,7 +256,7 @@ std::shared_ptr<AnisetteData> AnisetteDataManager::FetchAnisetteData()
 
 						struct tm tm = { 0 };
 						strptime(jsonVal.at("X-Apple-I-Client-Time").as_string().c_str(), "%Y-%m-%dT%H:%M:%SZ", &tm);
-						unsigned long ts = mktime(&tm);
+						unsigned long ts = timegm(&tm);
 						struct timeval tv = { 0 };
 						tv.tv_sec = ts;
 						tv.tv_usec = 0;
@@ -415,6 +415,7 @@ bool AnisetteDataManager::ReprovisionDevice(std::function<void(void)> provisionC
 
 bool AnisetteDataManager::ResetProvisioning()
 {
+#if SPOOF_MAC
 	std::string adiDirectoryPath = "C:\\ProgramData\\Apple Computer\\iTunes\\adi";
 
 	// Remove existing AltServer .pb files so we can create new ones next time we provision this device.
@@ -425,6 +426,7 @@ bool AnisetteDataManager::ResetProvisioning()
 			fs::remove(entry.path());
 		}
 	}
+#endif
 
 	return true;
 }
